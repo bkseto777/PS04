@@ -1,6 +1,6 @@
 ---
 title: "STAT/MATH 495: Problem Set 04"
-author: "WRITE YOUR NAME HERE"
+author: "Brendan Seto"
 date: "2017-10-03"
 output:
   html_document:
@@ -9,6 +9,7 @@ output:
     toc_depth: 2
     collapsed: false
     smooth_scroll: false
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
@@ -19,19 +20,21 @@ set.seed(76)
 # Collaboration
 
 Please indicate who you collaborated with on this assignment:
+Leonard Yoon
 
-
-# Load packages, data, model formulas
 
 ```{r, warning=FALSE}
 library(tidyverse)
+library(rlang)
+library(cowplot)
 credit <- read_csv("http://www-bcf.usc.edu/~gareth/ISL/Credit.csv") %>%
   select(-X1) %>%
   mutate(ID = 1:n()) %>% 
   select(ID, Balance, Income, Limit, Rating, Age, Cards, Education)
 ```
 
-You will train the following 7 models on `credit_train`...
+# Introduction
+I trained a linear model with 7 different formulas.  Each formulas differed by number of predictors.  The purpose of the exercise was to determine the optimal amount of coefficients to include in order to get the best results, measured by minimum RMSE.  
 
 ```{r}
 model1_formula <- as.formula("Balance ~ 1")
@@ -41,9 +44,10 @@ model4_formula <- as.formula("Balance ~ Income + Limit + Rating")
 model5_formula <- as.formula("Balance ~ Income + Limit + Rating + Age")
 model6_formula <- as.formula("Balance ~ Income + Limit + Rating + Age + Cards")
 model7_formula <- as.formula("Balance ~ Income + Limit + Rating + Age + Cards + Education")
+
+form <- c(model1_formula, model2_formula, model3_formula, model4_formula,model5_formula, model6_formula, model7_formula)
 ```
 
-... where `credit_train` is defined below, along with `credit_test`.
 
 ```{r}
 set.seed(79)
@@ -59,41 +63,36 @@ credit_test <- credit %>%
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
 # Placeholder vectors of length 7. For now, I've filled them with arbitrary 
 # values; you will fill these in
-RMSE_train <- runif(n=7)
-RMSE_test <- runif(n=7)
+RMSE <- function(x, test){
+  model_loess <- lm(form[[x]], data=credit_train)
+  
+  p <- test %>% mutate(prediction = predict(model_loess, newdata=test), dif = (Balance - prediction)^2)%>% 
+  summarise(RMSE = sqrt(mean(dif)))
+  
+  return(p$RMSE)
+}
 
-
-# Do your work here:
-
+num_coef = 1:7
 
 # Save results in a data frame. Note this data frame is in wide format.
 results <- data_frame(
-  num_coefficients = 1:7,
-  RMSE_train,
-  RMSE_test
+  num_coefficients = num_coef,
+  `Test data`  = sapply(num_coef, RMSE, test=credit_test),
+  `Train data` = sapply(num_coef, RMSE, test=credit_train)
 ) 
 
 # Some cleaning of results
-results <- results %>% 
-  # More intuitive names:
-  rename(
-    `Training data` = RMSE_train,
-    `Test data` = RMSE_test
-  ) %>% 
-  # Convert results data frame to "tidy" data format i.e. long format, so that we
-  # can ggplot it
-  gather(type, RMSE, -num_coefficients)
+results <- results %>% gather(type, RMSE, -num_coefficients)
 
 ggplot(results, aes(x=num_coefficients, y=RMSE, col=type)) +
   geom_line() + 
-  labs(x="# of coefficients", y="RMSE", col="Data used to evaluate \nperformance of fitted model")
+  labs(x="# of coefficients", y="RMSE", col="Data used to evaluate \nperformance of fitted model", title = "RMSE vs # of coefficients for LOESS Models (train dataset n=20)")
 ```
 
 
 # Interpret the graph
 
-Compare and contrast the two curves and hypothesize as to the root cause of any differences.
-
+Both curves drop precipitously after the 2nd coefficient.  This suggests the third addition gives a lot of additional information and is important to include.  However, the fourth coefficient does not help all that much.  Thus it may not be necessary.  In fact, when we test the model on the test data, more coefficients lead to a higher RMSE.  This may be due to overfitting, where we fit the model to noise rather than signal.  Thus we start to lose predictive power as noise is not shared between samples.  
 
 
 # Bonus
@@ -102,6 +101,34 @@ Repeat the whole process, but let `credit_train` be a random sample of size 380
 from `credit` instead of 20. Now compare and contrast this graph with the
 one above and hypothesize as to the root cause of any differences.
 
-```{r, echo=FALSE}
+```{r}
+set.seed(79)
+credit_trainB <- credit %>% 
+  sample_n(380)
+credit_testB <- credit %>% 
+  anti_join(credit_train, by="ID")
+```
+
+```{r}
+# Save results in a data frame. Note this data frame is in wide format.
+resultsB <- data_frame(
+  num_coefficients = num_coef,
+  `Test data`  = sapply(num_coef, RMSE, test=credit_testB),
+  `Train data` = sapply(num_coef, RMSE, test=credit_trainB)
+) 
+
+# Some cleaning of results
+resultsB <- resultsB %>% gather(type, RMSE, -num_coefficients)
+
+ggplot(resultsB, aes(x=num_coefficients, y=RMSE, col=type)) +
+  geom_line() + 
+  geom_point(data=results, aes(x=num_coefficients, y=RMSE, col=type))+
+  labs(x="# of coefficients", y="RMSE", col="Data used to evaluate \nperformance of fitted model", title = "RMSE vs # of coefficients for LOESS Models (train dataset n=380)")
 
 ```
+
+This time, the curves were very similar to each other.  Even if we add additional coefficients, the curves do not differ by that much.  This may be due to the fact that there is far less noise in a training sample of size 380 as opposed to 20.  Thus overfitting is not as large of a problem.  However, this means that the test dataset has much more noise, so even though we have a better model our predictions are not necessarily more accurate.  
+
+In the graph, the original train-test estimates are displayed as points for visibility. Interestingly, switching the training and testing datasets does not make a difference.  This suggests that training on a large dataset before testing on a small one is equivalent to training on a small dataset and testing on a large one.  
+
+It is interesting that training and testing the model on the same dataset does differ significantly by size.  This may be an indicator that we are fitting less to the noise and more to the signal, as we had hoped.  
