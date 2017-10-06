@@ -106,7 +106,7 @@ set.seed(79)
 credit_trainB <- credit %>% 
   sample_n(380)
 credit_testB <- credit %>% 
-  anti_join(credit_train, by="ID")
+  anti_join(credit_trainB, by="ID")
 ```
 
 ```{r}
@@ -127,8 +127,8 @@ ggplot(resultsB, aes(x=num_coefficients, y=RMSE, col=type)) +
 
 ```
 
-This time, the curves were very similar to each other.  Even if we add additional coefficients, the curves do not differ by that much.  This may be due to the fact that there is far less noise in a training sample of size 380 as opposed to 20.  Thus overfitting is not as large of a problem.  However, this means that the test dataset has much more noise, so even though we have a better model our predictions are not necessarily more accurate.  
+In the graph, the original train-test estimates are displayed as points for visibility. 
 
-In the graph, the original train-test estimates are displayed as points for visibility. Interestingly, switching the training and testing datasets does not make a difference.  This suggests that training on a large dataset before testing on a small one is equivalent to training on a small dataset and testing on a large one.  
+This time, the curves are far more similar to eachother.  Even if we add additional coefficients, the curves do not differ by as much.  This may be due to the fact that there is a far lower noise/singal ratio in a training sample of size 380 as opposed to 20.  Thus overfitting is not as large of a problem as we are training on mostly signal and our out of sample predictions perform about as well as our in sample.  
 
-It is interesting that training and testing the model on the same dataset does differ significantly by size.  This may be an indicator that we are fitting less to the noise and more to the signal, as we had hoped.  
+It appears that no mater what training set we use, if we test it on the large 380 observation sample we achieve similar results (this is the test of the 1st resample and train on the second).  This may indicate that larger test datasets are less  selective than smaller ones, as we are fairly confident more training data should lead to a better model.  Thus we may prefer to have smaller testing samples in the future.  
